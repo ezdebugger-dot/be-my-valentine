@@ -1,3 +1,6 @@
+// ⚙️ CONFIGURATION: Replace this with your Google Apps Script Web App URL
+const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz7EJImUF_zl4F7i5u2TDJP1nI5UAJzyfhljn-MxOpd6FSUI7fRQGMXuOL4OpJRx0_iTw/exec';
+
 // Cute warning messages for the "No" button
 const noMessages = [
     "No 😢",
@@ -74,8 +77,127 @@ function createFloatingHearts() {
     }, 400);
 }
 
+// Function to generate or retrieve unique browser ID
+function getBrowserId() {
+    let browserId = localStorage.getItem('valentine_browser_id');
+
+    if (!browserId) {
+        // Generate a unique ID based on browser fingerprint
+        const fingerprint = [
+            navigator.userAgent,
+            navigator.language,
+            screen.width,
+            screen.height,
+            screen.colorDepth,
+            new Date().getTimezoneOffset(),
+            navigator.hardwareConcurrency || 'unknown',
+            navigator.platform
+        ].join('|');
+
+        // Create a simple hash
+        let hash = 0;
+        for (let i = 0; i < fingerprint.length; i++) {
+            const char = fingerprint.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash; // Convert to 32bit integer
+        }
+
+        // Create a more readable ID
+        browserId = 'DEVICE_' + Math.abs(hash).toString(16).toUpperCase() + '_' + Date.now().toString(36).toUpperCase();
+        localStorage.setItem('valentine_browser_id', browserId);
+    }
+
+    return browserId;
+}
+
+// Function to get a user-friendly device name
+function getDeviceName() {
+    const ua = navigator.userAgent;
+    const platform = navigator.platform;
+
+    // Detect device type
+    let deviceType = 'Desktop';
+    if (/Mobile|Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)) {
+        deviceType = 'Mobile';
+        if (/iPad/i.test(ua)) {
+            deviceType = 'Tablet';
+        }
+    }
+
+    // Detect OS
+    let os = 'Unknown OS';
+    if (/Windows/i.test(platform) || /Win/i.test(ua)) {
+        os = 'Windows';
+    } else if (/Mac/i.test(platform) || /Macintosh/i.test(ua)) {
+        os = 'macOS';
+    } else if (/Linux/i.test(platform)) {
+        os = 'Linux';
+    } else if (/Android/i.test(ua)) {
+        os = 'Android';
+    } else if (/iPhone|iPad|iPod/i.test(ua)) {
+        os = 'iOS';
+    }
+
+    // Detect browser
+    let browser = 'Unknown Browser';
+    if (/Edg/i.test(ua)) {
+        browser = 'Edge';
+    } else if (/Chrome/i.test(ua) && !/Edg/i.test(ua)) {
+        browser = 'Chrome';
+    } else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) {
+        browser = 'Safari';
+    } else if (/Firefox/i.test(ua)) {
+        browser = 'Firefox';
+    } else if (/MSIE|Trident/i.test(ua)) {
+        browser = 'Internet Explorer';
+    }
+
+    return `${os} ${deviceType} (${browser})`;
+}
+
+// Function to save record to Google Sheets
+async function saveYesRecord() {
+    const browserId = getBrowserId();
+    const deviceName = getDeviceName();
+    const timestamp = new Date().toLocaleString();
+    const deviceInfo = {
+        browserId: browserId,
+        deviceName: deviceName,
+        timestamp: timestamp,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        screenResolution: `${screen.width}x${screen.height}`
+    };
+
+    try {
+        // Send data to Google Sheets via Apps Script
+        const response = await fetch(GOOGLE_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Important for Google Apps Script
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(deviceInfo)
+        });
+
+        console.log('✅ Record saved to Google Sheets:', deviceInfo);
+
+    } catch (error) {
+        console.error('❌ Error saving to Google Sheets:', error);
+        // Fallback: save to localStorage if Google Sheets fails
+        let records = JSON.parse(localStorage.getItem('valentine_yes_records') || '[]');
+        records.push(deviceInfo);
+        localStorage.setItem('valentine_yes_records', JSON.stringify(records));
+        console.log('💾 Saved to localStorage as fallback');
+    }
+}
+
 // Handle Yes button click
 yesBtn.addEventListener('click', () => {
+    // Save the record
+    saveYesRecord();
+
     // Create confetti explosion
     createConfetti();
 
